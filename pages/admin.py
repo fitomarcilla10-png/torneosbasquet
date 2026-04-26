@@ -260,17 +260,36 @@ if pagina == "🎮 Mesa de Control":
             cuarto = st.selectbox("Cuarto", [1, 2, 3, 4], index=st.session_state.cuarto_actual - 1, key="sel_cuarto")
             st.session_state.cuarto_actual = cuarto
 
-        # Cronómetro de 10 mín por cuarto
+        # ═══ PANEL ÚNICO COMPACTO: Cronómetro + Marcador + Estadísticas ═══
         st.markdown("---")
-        TIEMPO_CUARTO = 600  # 10 mín en segundos
         
-        if "crono_start" not in st.session_state:
-            st.session_state.crono_start = None
-            st.session_state.crono_elapsed = 0
-            st.session_state.crono_running = False
-
-        col_t1, col_t2, col_t3, col_t4, col_t5 = st.columns([3, 1, 1, 1, 1])
-        with col_t1:
+        pts_local = obtener_puntos_equipo(partido_id, partido['equipo_local_id'])
+        pts_visit = obtener_puntos_equipo(partido_id, partido['equipo_visitante_id'])
+        stats_temp = obtener_stats_partido(partido_id)
+        faltas_local = sum(s['faltas'] for s in stats_temp if s['equipo_id'] == partido['equipo_local_id'])
+        faltas_visit = sum(s['faltas'] for s in stats_temp if s['equipo_id'] == partido['equipo_visitante_id'])
+        
+        # FILA 1: Cronómetro + Marcador (todo junto)
+        col_panel = st.columns([2, 1.5, 2])
+        
+        # Marcador Local
+        with col_panel[0]:
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); 
+                        color: white; padding: 10px; border-radius: 10px; text-align: center;">
+                <div style="font-size: 0.9rem; font-weight: bold;">🏠 {partido['local_nombre'][:15]}</div>
+                <div style="font-size: 3rem; font-weight: bold; color: #ffd700;">{pts_local}</div>
+                <div style="font-size: 0.8rem; margin-top: 5px;">
+                    <span style="background: {'#28a745' if faltas_local < 4 else '#ffc107' if faltas_local < 5 else '#dc3545'}; 
+                               color: white; padding: 2px 10px; border-radius: 10px;">
+                        FALTAS: {faltas_local}
+                    </span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Cronómetro Central
+        with col_panel[1]:
             if st.session_state.crono_running and st.session_state.crono_start:
                 elapsed = st.session_state.crono_elapsed + (time.time() - st.session_state.crono_start)
             else:
@@ -280,93 +299,61 @@ if pagina == "🎮 Mesa de Control":
             mins = int(tiempo_restante // 60)
             secs = int(tiempo_restante % 60)
             
-            # Clase CSS según el tiempo restante
-            if tiempo_restante <= 60:
-                timer_class = "timer-danger"
-            elif tiempo_restante <= 120:
-                timer_class = "timer-warning"
-            else:
-                timer_class = ""
+            timer_color = "#ff0000" if tiempo_restante <= 60 else "#ffaa00" if tiempo_restante <= 120 else "#00ff00"
             
             st.markdown(f"""
-            <div style="text-align:center; background:#1a1a2e; padding:15px; border-radius:10px;">
-                <div class="timer-display {timer_class}">{mins:02d}:{secs:02d}</div>
-                <div style="color:#888; font-size:0.8rem; margin-top:5px;">⏱️ CUARTO {st.session_state.cuarto_actual} | RESTANTE</div>
+            <div style="background: #1a1a2e; padding: 8px; border-radius: 10px; text-align: center;">
+                <div style="font-size: 2.2rem; font-weight: bold; font-family: 'Courier New', monospace; 
+                           color: {timer_color}; text-shadow: 0 0 10px {timer_color};">
+                    {mins:02d}:{secs:02d}
+                </div>
+                <div style="font-size: 0.7rem; color: #888;">Q{st.session_state.cuarto_actual} | RESTANTE</div>
             </div>
             """, unsafe_allow_html=True)
             
-        with col_t2:
-            if st.button("▶️ Play", use_container_width=True):
-                if not st.session_state.crono_running:
-                    st.session_state.crono_start = time.time()
-                    st.session_state.crono_running = True
-                    st.rerun()
-        with col_t3:
-            if st.button("⏸️ Pausa", use_container_width=True):
-                if st.session_state.crono_running:
-                    st.session_state.crono_elapsed += time.time() - st.session_state.crono_start
+            # Botones de control en una fila
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                if st.button("▶️", key="play_btn", use_container_width=True):
+                    if not st.session_state.crono_running:
+                        st.session_state.crono_start = time.time()
+                        st.session_state.crono_running = True
+                        st.rerun()
+            with c2:
+                if st.button("⏸️", key="pause_btn", use_container_width=True):
+                    if st.session_state.crono_running:
+                        st.session_state.crono_elapsed += time.time() - st.session_state.crono_start
+                        st.session_state.crono_running = False
+                        st.rerun()
+            with c3:
+                if st.button("🔄", key="reset_btn", use_container_width=True):
+                    st.session_state.crono_start = None
+                    st.session_state.crono_elapsed = 0
                     st.session_state.crono_running = False
                     st.rerun()
-        with col_t4:
-            if st.button("🔄 Reset", use_container_width=True):
-                st.session_state.crono_start = None
-                st.session_state.crono_elapsed = 0
-                st.session_state.crono_running = False
-                st.rerun()
-        with col_t5:
-            if st.button("⏭️ Fin Cuarto", use_container_width=True):
-                guardar_puntaje_cuarto(partido_id, partido['equipo_local_id'], st.session_state.cuarto_actual, 
-                                       obtener_puntos_equipo(partido_id, partido['equipo_local_id']))
-                guardar_puntaje_cuarto(partido_id, partido['equipo_visitante_id'], st.session_state.cuarto_actual,
-                                       obtener_puntos_equipo(partido_id, partido['equipo_visitante_id']))
-                if st.session_state.cuarto_actual < 4:
-                    st.session_state.cuarto_actual += 1
-                st.session_state.crono_start = None
-                st.session_state.crono_elapsed = 0
-                st.session_state.crono_running = False
-                st.rerun()
-
-        # Marcador con diseño tipo pizarra electrónica
-        st.markdown("---")
-        pts_local = obtener_puntos_equipo(partido_id, partido['equipo_local_id'])
-        pts_visit = obtener_puntos_equipo(partido_id, partido['equipo_visitante_id'])
+            with c4:
+                if st.button("⏭️", key="fin_btn", use_container_width=True):
+                    guardar_puntaje_cuarto(partido_id, partido['equipo_local_id'], st.session_state.cuarto_actual, 
+                                           obtener_puntos_equipo(partido_id, partido['equipo_local_id']))
+                    guardar_puntaje_cuarto(partido_id, partido['equipo_visitante_id'], st.session_state.cuarto_actual,
+                                           obtener_puntos_equipo(partido_id, partido['equipo_visitante_id']))
+                    if st.session_state.cuarto_actual < 4:
+                        st.session_state.cuarto_actual += 1
+                    st.session_state.crono_start = None
+                    st.session_state.crono_elapsed = 0
+                    st.session_state.crono_running = False
+                    st.rerun()
         
-        # Calcular faltas de equipo
-        stats_temp = obtener_stats_partido(partido_id)
-        faltas_local = sum(s['faltas'] for s in stats_temp if s['equipo_id'] == partido['equipo_local_id'])
-        faltas_visit = sum(s['faltas'] for s in stats_temp if s['equipo_id'] == partido['equipo_visitante_id'])
-
-        col_score = st.columns([2, 1, 2])
-        with col_score[0]:
-            if partido['local_logo'] and os.path.exists(partido['local_logo']):
-                st.image(partido['local_logo'], width=80)
+        # Marcador Visitante
+        with col_panel[2]:
             st.markdown(f"""
-            <div class="scoreboard">
-                <div class="team-name">🏠 {partido['local_nombre']}</div>
-                <div class="score">{pts_local}</div>
-                <div style="margin-top:10px;">
-                    <span class="fouls-box {'fouls-ok' if faltas_local < 3 else 'fouls-warning' if faltas_local < 5 else 'fouls-danger'}">
-                        FALTAS: {faltas_local}
-                    </span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        with col_score[1]:
-            st.markdown(f"""
-            <div style="text-align:center; padding-top:40px;">
-                <div style="font-size:2rem; color:#888;">VS</div>
-                <div style="font-size:1rem; color:#666; margin-top:10px;">Q{st.session_state.cuarto_actual}</div>
-            </div>
-            """, unsafe_allow_html=True)
-        with col_score[2]:
-            if partido['visitante_logo'] and os.path.exists(partido['visitante_logo']):
-                st.image(partido['visitante_logo'], width=80)
-            st.markdown(f"""
-            <div class="scoreboard">
-                <div class="team-name">✈️ {partido['visitante_nombre']}</div>
-                <div class="score">{pts_visit}</div>
-                <div style="margin-top:10px;">
-                    <span class="fouls-box {'fouls-ok' if faltas_visit < 3 else 'fouls-warning' if faltas_visit < 5 else 'fouls-danger'}">
+            <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); 
+                        color: white; padding: 10px; border-radius: 10px; text-align: center;">
+                <div style="font-size: 0.9rem; font-weight: bold;">✈️ {partido['visitante_nombre'][:15]}</div>
+                <div style="font-size: 3rem; font-weight: bold; color: #ffd700;">{pts_visit}</div>
+                <div style="font-size: 0.8rem; margin-top: 5px;">
+                    <span style="background: {'#28a745' if faltas_visit < 4 else '#ffc107' if faltas_visit < 5 else '#dc3545'}; 
+                               color: white; padding: 2px 10px; border-radius: 10px;">
                         FALTAS: {faltas_visit}
                     </span>
                 </div>
@@ -419,10 +406,9 @@ if pagina == "🎮 Mesa de Control":
                     st.write(f"🔴 Usados: {tm_visit}/{max_tiempos} - **SIN TIEMPOS**")
                     st.button("⏸️ Pedir Tiempo Muerto", key=f"tm_visit_{partido_id}", disabled=True)
 
-        # NUEVO DISEÑO VISUAL DE LA MESA DE CONTROL
+        # NUEVO DISEÑO VISUAL COMPACTO DE LA MESA DE CONTROL
         if partido['estado'] == 'En curso':
             st.markdown("---")
-            st.markdown("## 🏀 Control de Estadísticas")
             
             # Obtener jugadores
             local_id = partido['equipo_local_id']
@@ -437,24 +423,19 @@ if pagina == "🎮 Mesa de Control":
             if "jug_seleccionado" not in st.session_state:
                 st.session_state.jug_seleccionado = None
             
-            # Layout: Equipo Local | Panel Central | Equipo Visitante
-            col_loc, col_panel, col_vis = st.columns([2, 4, 2])
+            # Layout compacto: Jugadores | Stats | Jugadores (todo en una fila)
+            col_loc, col_panel, col_vis = st.columns([1.5, 5, 1.5])
             
-            # --- COLUMNA IZQUIERDA: Equipo Local ---
+            # --- COLUMNA IZQUIERDA: Equipo Local (solo dorsales) ---
             with col_loc:
                 st.markdown(f"""
-                <div class="equipo-local">
-                    <h3>🏠 {partido['local_nombre']}</h3>
-                    <div style="font-size: 2rem; font-weight: bold;">{pts_local}</div>
+                <div style="background: #1f77b4; color: white; padding: 5px; border-radius: 5px; text-align: center; font-size: 0.8rem;">
+                    🏠 {partido['local_nombre'][:12]}
                 </div>
                 """, unsafe_allow_html=True)
-                st.markdown("<br>", unsafe_allow_html=True)
                 
-                if not jug_local_cancha:
-                    st.info("Sin jugadores en cancha")
-                else:
-                    st.markdown("**En Cancha:**")
-                    for j in jug_local_cancha:
+                if jug_local_cancha:
+                    for j in sorted(jug_local_cancha, key=lambda x: x['dorsal']):
                         is_selected = st.session_state.jug_seleccionado == j['id']
                         if st.button(f"#{j['dorsal']}", 
                                    key=f"loc_{partido_id}_{j['id']}",
@@ -463,21 +444,16 @@ if pagina == "🎮 Mesa de Control":
                             st.session_state.jug_seleccionado = j['id']
                             st.rerun()
             
-            # --- COLUMNA DERECHA: Equipo Visitante ---
+            # --- COLUMNA DERECHA: Equipo Visitante (solo dorsales) ---
             with col_vis:
                 st.markdown(f"""
-                <div class="equipo-visitante">
-                    <h3>✈️ {partido['visitante_nombre']}</h3>
-                    <div style="font-size: 2rem; font-weight: bold;">{pts_visit}</div>
+                <div style="background: #ff7f0e; color: white; padding: 5px; border-radius: 5px; text-align: center; font-size: 0.8rem;">
+                    ✈️ {partido['visitante_nombre'][:12]}
                 </div>
                 """, unsafe_allow_html=True)
-                st.markdown("<br>", unsafe_allow_html=True)
                 
-                if not jug_visit_cancha:
-                    st.info("Sin jugadores en cancha")
-                else:
-                    st.markdown("**En Cancha:**")
-                    for j in jug_visit_cancha:
+                if jug_visit_cancha:
+                    for j in sorted(jug_visit_cancha, key=lambda x: x['dorsal']):
                         is_selected = st.session_state.jug_seleccionado == j['id']
                         if st.button(f"#{j['dorsal']}", 
                                    key=f"vis_{partido_id}_{j['id']}",
@@ -486,7 +462,7 @@ if pagina == "🎮 Mesa de Control":
                             st.session_state.jug_seleccionado = j['id']
                             st.rerun()
             
-            # --- COLUMNA CENTRAL: Panel de Estadísticas ---
+            # --- COLUMNA CENTRAL: Panel de Estadísticas Compacto ---
             with col_panel:
                 jug_sel = st.session_state.jug_seleccionado
                 
@@ -506,114 +482,85 @@ if pagina == "🎮 Mesa de Control":
                         faltas_actuales = jug_stats_temp.get('faltas', 0) if isinstance(jug_stats_temp, dict) else 0
                         pts_actuales = jug_stats_temp.get('pts', 0) if isinstance(jug_stats_temp, dict) else 0
                         
-                        # Card del jugador
+                        # Card compacta del jugador
                         st.markdown(f"""
-                        <div class="jugador-card">
-                            <h2>#{jugador_info['dorsal']} {jugador_info['nombre']}</h2>
-                            <div style="display: flex; justify-content: space-around; margin-top: 15px;">
-                                <div>
-                                    <div style="font-size: 2.5rem; font-weight: bold;">{pts_actuales}</div>
-                                    <div>PUNTOS</div>
-                                </div>
-                                <div>
-                                    <div style="font-size: 2.5rem; font-weight: bold; {'color: #ff6b6b;' if faltas_actuales >= 4 else ''}">{faltas_actuales}/5</div>
-                                    <div>FALTAS</div>
-                                </div>
+                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                                    color: white; padding: 8px; border-radius: 8px; text-align: center; margin-bottom: 8px;">
+                            <div style="font-size: 1.1rem; font-weight: bold;">#{jugador_info['dorsal']} {jugador_info['nombre']}</div>
+                            <div style="display: flex; justify-content: center; gap: 30px; margin-top: 5px;">
+                                <div><span style="font-size: 1.5rem;">{pts_actuales}</span> PTS</div>
+                                <div><span style="font-size: 1.5rem; {'color: #ff6b6b;' if faltas_actuales >= 4 else ''}">{faltas_actuales}/5</span> FLT</div>
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # Alertas de faltas
+                        # Alertas de faltas compactas
                         if faltas_actuales >= 5:
-                            st.error("🚫 **JUGADOR ELIMINADO** - 5 faltas")
+                            st.error("🚫 ELIMINADO", icon="⚠️")
                         elif faltas_actuales == 4:
-                            st.error("⚠️ **ALERTA:** ¡Una falta más y queda eliminado!")
-                        elif faltas_actuales == 3:
-                            st.warning("⚠️ **3 faltas** - Cuidado")
+                            st.warning("⚠️ Una más y fuera", icon="⚠️")
                         
-                        # BOTONES DE PUNTOS ACERTADOS
-                        col_p1, col_p2, col_p3 = st.columns(3)
-                        with col_p1:
-                            if st.button("✅ +1 PUNTO", key=f"p1_{partido_id}_{jug_sel}", use_container_width=True):
+                        # BOTONES COMPACTOS - 2 filas
+                        # Fila 1: Puntos acertados
+                        c1, c2, c3 = st.columns(3)
+                        with c1:
+                            if st.button("+1", key=f"p1_{partido_id}_{jug_sel}", use_container_width=True):
                                 registrar_evento(partido_id, jug_sel, "+1", 1, st.session_state.cuarto_actual)
                                 st.rerun()
-                        with col_p2:
-                            if st.button("✅ +2 PUNTOS", key=f"p2_{partido_id}_{jug_sel}", use_container_width=True):
+                        with c2:
+                            if st.button("+2", key=f"p2_{partido_id}_{jug_sel}", use_container_width=True):
                                 registrar_evento(partido_id, jug_sel, "+2", 2, st.session_state.cuarto_actual)
                                 st.rerun()
-                        with col_p3:
-                            if st.button("✅ +3 PUNTOS", key=f"p3_{partido_id}_{jug_sel}", use_container_width=True):
+                        with c3:
+                            if st.button("+3", key=f"p3_{partido_id}_{jug_sel}", use_container_width=True):
                                 registrar_evento(partido_id, jug_sel, "+3", 3, st.session_state.cuarto_actual)
                                 st.rerun()
                         
-                        # BOTONES DE PUNTOS ERRADOS
-                        col_e1, col_e2, col_e3 = st.columns(3)
-                        with col_e1:
-                            if st.button("❌ T1 ERRADO", key=f"e1_{partido_id}_{jug_sel}", use_container_width=True, type="secondary"):
+                        # Fila 2: Errados + Falta
+                        c4, c5, c6, c7 = st.columns(4)
+                        with c4:
+                            if st.button("T1E", key=f"e1_{partido_id}_{jug_sel}", use_container_width=True):
                                 registrar_evento(partido_id, jug_sel, "T1E", 0, st.session_state.cuarto_actual)
                                 st.rerun()
-                        with col_e2:
-                            if st.button("❌ T2 ERRADO", key=f"e2_{partido_id}_{jug_sel}", use_container_width=True, type="secondary"):
+                        with c5:
+                            if st.button("T2E", key=f"e2_{partido_id}_{jug_sel}", use_container_width=True):
                                 registrar_evento(partido_id, jug_sel, "T2E", 0, st.session_state.cuarto_actual)
                                 st.rerun()
-                        with col_e3:
-                            if st.button("❌ T3 ERRADO", key=f"e3_{partido_id}_{jug_sel}", use_container_width=True, type="secondary"):
+                        with c6:
+                            if st.button("T3E", key=f"e3_{partido_id}_{jug_sel}", use_container_width=True):
                                 registrar_evento(partido_id, jug_sel, "T3E", 0, st.session_state.cuarto_actual)
                                 st.rerun()
+                        with c7:
+                            if st.button("🚨 F", key=f"flt_{partido_id}_{jug_sel}", use_container_width=True, type="primary"):
+                                registrar_evento(partido_id, jug_sel, "Falta", 0, st.session_state.cuarto_actual)
+                                st.rerun()
                         
-                        # OTRAS ESTADÍSTICAS
-                        col_o1, col_o2, col_o3 = st.columns(3)
-                        with col_o1:
-                            if st.button("💪 Reb. Of.", key=f"ro_{partido_id}_{jug_sel}", use_container_width=True):
+                        # Fila 3: Otras stats
+                        c8, c9, c10, c11 = st.columns(4)
+                        with c8:
+                            if st.button("RO", key=f"ro_{partido_id}_{jug_sel}", use_container_width=True):
                                 registrar_evento(partido_id, jug_sel, "Rebote Ofensivo", 0, st.session_state.cuarto_actual)
                                 st.rerun()
-                            if st.button("⚡ Recupero", key=f"rec_{partido_id}_{jug_sel}", use_container_width=True):
-                                registrar_evento(partido_id, jug_sel, "Recupero", 0, st.session_state.cuarto_actual)
-                                st.rerun()
-                        with col_o2:
-                            if st.button("🛡️ Reb. Def.", key=f"rd_{partido_id}_{jug_sel}", use_container_width=True):
+                        with c9:
+                            if st.button("RD", key=f"rd_{partido_id}_{jug_sel}", use_container_width=True):
                                 registrar_evento(partido_id, jug_sel, "Rebote Defensivo", 0, st.session_state.cuarto_actual)
                                 st.rerun()
-                            if st.button("💨 Pérdida", key=f"per_{partido_id}_{jug_sel}", use_container_width=True):
-                                registrar_evento(partido_id, jug_sel, "Pérdida", 0, st.session_state.cuarto_actual)
-                                st.rerun()
-                        with col_o3:
-                            if st.button("🎯 Asistencia", key=f"ast_{partido_id}_{jug_sel}", use_container_width=True):
+                        with c10:
+                            if st.button("AST", key=f"ast_{partido_id}_{jug_sel}", use_container_width=True):
                                 registrar_evento(partido_id, jug_sel, "Asistencia", 0, st.session_state.cuarto_actual)
                                 st.rerun()
-                            if st.button("🚨 FALTA", key=f"flt_{partido_id}_{jug_sel}", use_container_width=True, type="primary"):
-                                nuevas_faltas = faltas_actuales + 1
-                                registrar_evento(partido_id, jug_sel, "Falta", 0, st.session_state.cuarto_actual)
-                                if nuevas_faltas >= 5:
-                                    st.error(f"🚫 #{jugador_info['dorsal']} {jugador_info['nombre']} ELIMINADO - 5 faltas")
-                                elif nuevas_faltas == 4:
-                                    st.warning(f"⚠️ #{jugador_info['dorsal']} {jugador_info['nombre']} tiene 4 faltas")
+                        with c11:
+                            if st.button("REC", key=f"rec_{partido_id}_{jug_sel}", use_container_width=True):
+                                registrar_evento(partido_id, jug_sel, "Recupero", 0, st.session_state.cuarto_actual)
                                 st.rerun()
                 else:
-                    # Mensaje cuando no hay jugador seleccionado
-                    st.markdown("""
-                    <div class="stats-box">
-                        <h3>👈 Seleccioná un jugador</h3>
-                        <p>Hacé clic en un jugador del equipo local o visitante</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.info("👈 Seleccioná un jugador de los laterales")
 
-        # Log de Eventos
-        st.markdown("---")
-
-        # ═══ GESTIÓN DE CANCHA (meter/sacar jugadores) - NUEVO DISEÑO ═══
+        # ═══ GESTIÓN DE CANCHA COMPACTA ═══
         if partido['estado'] == 'En curso':
             st.markdown("---")
-            st.markdown("## 🔄 Gestión de Planteles")
             
             col_cancha_loc, col_cancha_vis = st.columns(2)
-            
-            local_id = partido['equipo_local_id']
-            visit_id = partido['equipo_visitante_id']
-            en_cancha_local = obtener_en_cancha(partido_id, local_id)
-            en_cancha_visit = obtener_en_cancha(partido_id, visit_id)
-            jug_local = listar_jugadores(local_id)
-            jug_visit = listar_jugadores(visit_id)
             
             for col_cancha, (equipo_id, equipo_nombre, jug_equipo, en_cancha_ids) in zip(
                 [col_cancha_loc, col_cancha_vis],
@@ -625,91 +572,48 @@ if pagina == "🎮 Mesa de Control":
                     jugadores_fuera = [j for j in jug_equipo if j['id'] not in en_cancha_ids]
                     
                     st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); 
-                                color: white; padding: 15px; border-radius: 10px; text-align: center;">
-                        <h4>🏀 {equipo_nombre}</h4>
-                        <div style="font-size: 0.9rem;">En cancha: <span style="color: #00ff00; font-weight: bold;">{len(jugadores_dentro)}/5</span></div>
+                    <div style="background: #1a1a2e; color: white; padding: 5px; border-radius: 5px; text-align: center; font-size: 0.8rem;">
+                        🏀 {equipo_nombre[:15]} | En cancha: <span style="color: #00ff00;">{len(jugadores_dentro)}/5</span>
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # SECCIÓN: TITULARES (En Cancha)
-                    st.markdown("""
-                    <div style="background: #d4edda; padding: 8px; border-radius: 5px; margin: 10px 0 5px 0; text-align: center;">
-                        <strong>🟢 TITULARES (En Cancha)</strong>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    if not jugadores_dentro:
-                        st.info("Sin jugadores en cancha. Seleccioná suplentes para meter.")
-                    else:
+                    # TITULARES
+                    st.caption("🟢 TITULARES")
+                    if jugadores_dentro:
                         for jug in sorted(jugadores_dentro, key=lambda x: x['dorsal']):
-                            cols = st.columns([1, 3, 1])
-                            with cols[0]:
-                                st.markdown(f"<div style='font-size:1.5rem; text-align:center;'>👤</div>", unsafe_allow_html=True)
-                            with cols[1]:
+                            c1, c2 = st.columns([3, 1])
+                            with c1:
                                 st.markdown(f"""
-                                <div class="player-titular">
-                                    <strong>#{jug['dorsal']}</strong> {jug['nombre']}
+                                <div style="background: #28a745; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.8rem;">
+                                    <strong>#{jug['dorsal']}</strong> {jug['nombre'][:15]}
                                 </div>
                                 """, unsafe_allow_html=True)
-                            with cols[2]:
-                                if st.button("⬇️", key=f"out_{partido_id}_{equipo_id}_{jug['id']}", help="Sacar de cancha"):
+                            with c2:
+                                if st.button("⬇️", key=f"out_{partido_id}_{equipo_id}_{jug['id']}", use_container_width=True):
                                     sacar_jugador_cancha(partido_id, jug['id'], time.time())
                                     st.rerun()
                     
-                    # SECCIÓN: SUPLENTES (Fuera)
-                    st.markdown("""
-                    <div style="background: #f8f9fa; padding: 8px; border-radius: 5px; margin: 15px 0 5px 0; text-align: center; border: 2px dashed #dee2e6;">
-                        <strong>⚪ SUPLENTES (Banco)</strong>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    if not jugadores_fuera:
-                        st.caption("Sin suplentes disponibles")
-                    else:
+                    # SUPLENTES
+                    st.caption("⚪ SUPLENTES")
+                    if jugadores_fuera:
                         for jug in sorted(jugadores_fuera, key=lambda x: x['dorsal']):
-                            cols = st.columns([1, 3, 1])
-                            with cols[0]:
-                                st.markdown(f"<div style='font-size:1.5rem; text-align:center;'>💺</div>", unsafe_allow_html=True)
-                            with cols[1]:
+                            c1, c2 = st.columns([3, 1])
+                            with c1:
                                 st.markdown(f"""
-                                <div class="player-suplente">
-                                    <strong>#{jug['dorsal']}</strong> {jug['nombre']}
+                                <div style="background: #6c757d; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.8rem;">
+                                    <strong>#{jug['dorsal']}</strong> {jug['nombre'][:15]}
                                 </div>
                                 """, unsafe_allow_html=True)
-                            with cols[2]:
+                            with c2:
                                 if len(en_cancha_ids) < 5:
-                                    if st.button("⬆️", key=f"in_{partido_id}_{equipo_id}_{jug['id']}", help="Meter a cancha"):
+                                    if st.button("⬆️", key=f"in_{partido_id}_{equipo_id}_{jug['id']}", use_container_width=True):
                                         ingresar_jugador_cancha(partido_id, jug['id'], time.time())
                                         st.rerun()
                                 else:
-                                    st.markdown("<div style='text-align:center; color:#dc3545;'>🔒</div>", unsafe_allow_html=True)
+                                    st.markdown("<div style='text-align:center; color:#dc3545; font-size:0.7rem;'>🔒</div>", unsafe_allow_html=True)
 
-                    # Tabla de stats del equipo
-                    stats_eq = obtener_stats_partido(partido_id)
-                    stats_dict_eq = {s['jugador_id']: s for s in stats_eq}
-                    tabla_data = []
-                    for jug in jug_equipo:
-                        s = stats_dict_eq.get(jug['id'], {})
-                        faltas = s.get('faltas', 0) if isinstance(s, dict) else 0
-                        tiempo_seg = obtener_tiempo_total(partido_id, jug['id'])
-                        t_min = int(tiempo_seg // 60)
-                        t_sec = int(tiempo_seg % 60)
-                        en = "🟢" if jug['id'] in en_cancha_ids else "⚪"
-                        tabla_data.append({
-                            '': en,
-                            '#': jug['dorsal'],
-                            'Jugador': jug['nombre'],
-                            'PTS': s.get('pts', 0) if isinstance(s, dict) else 0,
-                            'FLT': f"{'🔴' if faltas >= 5 else ''}{faltas}",
-                            'CJ': obtener_cuartos_jugados(partido_id, jug['id']),
-                            '⏱️': f"{t_min:02d}:{t_sec:02d}",
-                        })
-                    st.dataframe(pd.DataFrame(tabla_data), hide_index=True, use_container_width=True, height=220)
-
+        # Log de Eventos (compacto)
         st.markdown("---")
-        st.subheader("📝 Log de Eventos")
-        
         col_ev1, col_ev2 = st.columns([1, 3])
         with col_ev1:
             cantidad = st.selectbox("Mostrar", ["Últimos 5", "Últimos 10", "Todos"], key="log_cantidad")
@@ -722,15 +626,16 @@ if pagina == "🎮 Mesa de Control":
             from db import obtener_todos_eventos
             eventos = obtener_todos_eventos(partido_id)
         
-        if eventos:
-            for ev in eventos:
-                tiempo_str = ev.get('timestamp', '')
-                st.write(f"🔹 **{ev['equipo_nombre']}** — #{ev['dorsal']} {ev['jugador_nombre']} — {ev['tipo']} (Q{ev['cuarto']}) — ⏱️ {tiempo_str}")
-            if st.button("↩️ Deshacer última acción"):
-                borrar_ultimo_evento(partido_id)
-                st.rerun()
-        else:
-            st.info("Sin eventos registrados.")
+        with col_ev2:
+            if eventos:
+                for ev in eventos[:5]:  # Solo mostrar 5 para ahorrar espacio
+                    tiempo_str = ev.get('timestamp', '')
+                    st.write(f"🔹 #{ev['dorsal']} {ev['tipo']} (Q{ev['cuarto']}) ⏱️ {tiempo_str}")
+                if st.button("↩️ Deshacer última"):
+                    borrar_ultimo_evento(partido_id)
+                    st.rerun()
+            else:
+                st.caption("Sin eventos")
 
 # [Resto del código de otras páginas...]
 # Por simplicidad, incluyo solo la Mesa de Control completa
