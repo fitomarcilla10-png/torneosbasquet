@@ -845,7 +845,7 @@ elif pagina == "📋 Inscripción":
             # --- Carga masiva por Excel ---
             st.markdown("---")
             st.markdown("**📥 Carga masiva desde Excel**")
-            st.caption("Columnas requeridas: `apellido`, `nombre`, `dorsal`. Opcionales: `dni`, `fecha_nacimiento` (YYYY-MM-DD)")
+            st.caption("Columnas requeridas: `apellido`, `nombre`, `dorsal`. Opcionales: `dni`, `fecha_nacimiento` (DD-MM-YYYY)")
             excel_file = st.file_uploader("Subir Excel (.xlsx)", type=["xlsx"], key=f"excel_{equipo_id}")
             if excel_file:
                 try:
@@ -876,9 +876,16 @@ elif pagina == "📋 Inscripción":
                                 fecha_nac = None
                                 if 'fecha_nacimiento' in row and pd.notna(row['fecha_nacimiento']):
                                     if isinstance(row['fecha_nacimiento'], pd.Timestamp):
-                                        fecha_nac = row['fecha_nacimiento'].strftime("%Y-%m-%d")
+                                        fecha_nac = row['fecha_nacimiento'].strftime("%d-%m-%Y")
                                     else:
-                                        fecha_nac = str(row['fecha_nacimiento'])
+                                        # Si es string, asumir formato DD-MM-YYYY o convertir
+                                        fecha_str = str(row['fecha_nacimiento']).strip()
+                                        # Si viene en formato YYYY-MM-DD, convertir a DD-MM-YYYY
+                                        if len(fecha_str) == 10 and fecha_str[4] == '-' and fecha_str[7] == '-':
+                                            # Formato YYYY-MM-DD → DD-MM-YYYY
+                                            fecha_nac = f"{fecha_str[8:10]}-{fecha_str[5:7]}-{fecha_str[0:4]}"
+                                        else:
+                                            fecha_nac = fecha_str
                                 
                                 agregar_jugador(
                                     str(row['apellido']).strip(),
