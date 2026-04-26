@@ -242,7 +242,7 @@ if pagina == "🎮 Mesa de Control":
         partido = obtener_partido(partido_id)
 
         # Estado del partido
-        col_ctrl1, col_ctrl2, col_ctrl3, col_ctrl4 = st.columns(4)
+        col_ctrl1, col_ctrl2, col_ctrl3 = st.columns(3)
         with col_ctrl1:
             if partido['estado'] == 'Pendiente':
                 if st.button("▶️ Iniciar Partido", type="primary"):
@@ -259,9 +259,6 @@ if pagina == "🎮 Mesa de Control":
                 st.session_state.cuarto_actual = 1
             cuarto = st.selectbox("Cuarto", [1, 2, 3, 4], index=st.session_state.cuarto_actual - 1, key="sel_cuarto")
             st.session_state.cuarto_actual = cuarto
-        with col_ctrl4:
-            if st.button("📋 Vista Planilla"):
-                st.switch_page("pages/planilla.py")
 
         # ═══ PANEL ÚNICO COMPACTO: Cronómetro + Marcador + Estadísticas ═══
         st.markdown("---")
