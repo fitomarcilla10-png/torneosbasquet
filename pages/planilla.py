@@ -21,6 +21,23 @@ from db import (
 
 st.set_page_config(page_title="Mesa de Control - Planilla", page_icon="📋", layout="wide")
 
+# Verificar login (mismo sistema que admin.py)
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+    st.session_state.usuario = None
+    st.session_state.rol = None
+
+if not st.session_state.authenticated:
+    st.warning("🔒 Debes iniciar sesión primero")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🔐 Ir al Login", type="primary"):
+            st.switch_page("pages/admin.py")
+    with col2:
+        if st.button("🏠 Ir al Inicio"):
+            st.switch_page("app.py")
+    st.stop()
+
 # CSS para estilo planilla
 st.markdown("""
 <style>
@@ -102,11 +119,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 init_db()
-
-# Verificar login
-if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.warning("🔒 Debes iniciar sesión primero")
-    st.stop()
 
 st.title("📋 Mesa de Control - Vista Planilla")
 
