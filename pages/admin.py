@@ -367,51 +367,36 @@ if pagina == "🎮 Mesa de Control":
             </div>
             """, unsafe_allow_html=True)
 
-        # Tiempos muertos
+        # Tiempos muertos - VERSIÓN COMPACTA
         if partido['estado'] == 'En curso':
-            st.markdown("---")
-            st.markdown("#### ⏸️ Tiempos Muertos")
-            
             cuarto_actual = st.session_state.cuarto_actual
-            
-            if cuarto_actual in [1, 2]:
-                max_tiempos = 2
-                periodo = "Q1-Q2"
-            else:
-                max_tiempos = 3
-                periodo = "Q3-Q4"
+            max_tiempos = 2 if cuarto_actual in [1, 2] else 3
             
             col_tm1, col_tm2 = st.columns(2)
             
             with col_tm1:
-                st.markdown(f"**{partido['local_nombre']}**")
                 tm_local = contar_tiempos_muertos(partido_id, partido['equipo_local_id'], cuarto_actual)
-                tm_restantes_local = max_tiempos - tm_local
+                tm_rest_local = max_tiempos - tm_local
+                color_local = "🟢" if tm_rest_local > 0 else "🔴"
                 
-                if tm_restantes_local > 0:
-                    st.write(f"🟢 Usados: {tm_local}/{max_tiempos} ({periodo})")
-                    if st.button("⏸️ Pedir Tiempo Muerto", key=f"tm_local_{partido_id}"):
-                        registrar_tiempo_muerto(partido_id, partido['equipo_local_id'], cuarto_actual)
-                        st.success(f"✅ Tiempo muerto registrado para {partido['local_nombre']}")
-                        st.rerun()
-                else:
-                    st.write(f"🔴 Usados: {tm_local}/{max_tiempos} - **SIN TIEMPOS**")
-                    st.button("⏸️ Pedir Tiempo Muerto", key=f"tm_local_{partido_id}", disabled=True)
+                if st.button(f"⏸️ {partido['local_nombre'][:10]} ({tm_local}/{max_tiempos})", 
+                           key=f"tm_local_{partido_id}", 
+                           use_container_width=True,
+                           disabled=tm_rest_local == 0):
+                    registrar_tiempo_muerto(partido_id, partido['equipo_local_id'], cuarto_actual)
+                    st.rerun()
             
             with col_tm2:
-                st.markdown(f"**{partido['visitante_nombre']}**")
                 tm_visit = contar_tiempos_muertos(partido_id, partido['equipo_visitante_id'], cuarto_actual)
-                tm_restantes_visit = max_tiempos - tm_visit
+                tm_rest_visit = max_tiempos - tm_visit
+                color_visit = "🟢" if tm_rest_visit > 0 else "🔴"
                 
-                if tm_restantes_visit > 0:
-                    st.write(f"🟢 Usados: {tm_visit}/{max_tiempos} ({periodo})")
-                    if st.button("⏸️ Pedir Tiempo Muerto", key=f"tm_visit_{partido_id}"):
-                        registrar_tiempo_muerto(partido_id, partido['equipo_visitante_id'], cuarto_actual)
-                        st.success(f"✅ Tiempo muerto registrado para {partido['visitante_nombre']}")
-                        st.rerun()
-                else:
-                    st.write(f"🔴 Usados: {tm_visit}/{max_tiempos} - **SIN TIEMPOS**")
-                    st.button("⏸️ Pedir Tiempo Muerto", key=f"tm_visit_{partido_id}", disabled=True)
+                if st.button(f"⏸️ {partido['visitante_nombre'][:10]} ({tm_visit}/{max_tiempos})", 
+                           key=f"tm_visit_{partido_id}", 
+                           use_container_width=True,
+                           disabled=tm_rest_visit == 0):
+                    registrar_tiempo_muerto(partido_id, partido['equipo_visitante_id'], cuarto_actual)
+                    st.rerun()
 
         # NUEVO DISEÑO VISUAL COMPACTO DE LA MESA DE CONTROL
         if partido['estado'] == 'En curso':
