@@ -17,6 +17,55 @@ def get_connection():
 def init_db():
     conn = get_connection()
     c = conn.cursor()
+    
+    # === MIGRACIÓN: Verificar si tabla jugadores tiene estructura vieja ===
+    try:
+        c.execute("SELECT apellido FROM jugadores LIMIT 1")
+    except sqlite3.OperationalError:
+        # La columna 'apellido' no existe, necesitamos migrar
+        print("Migrando tabla jugadores a nueva estructura...")
+        try:
+            # Renombrar tabla vieja
+            c.execute("ALTER TABLE jugadores RENAME TO jugadores_old")
+            # Crear tabla nueva con estructura correcta
+            c.execute("""
+                CREATE TABLE jugadores (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    apellido TEXT NOT NULL,
+                    nombre TEXT NOT NULL,
+                    dni TEXT,
+                    fecha_nacimiento TEXT,
+                    dorsal INTEGER NOT NULL,
+                    equipo_id INTEGER NOT NULL,
+                    FOREIGN KEY (equipo_id) REFERENCES equipos(id) ON DELETE CASCADE,
+                    UNIQUE(equipo_id, dni)
+                )
+            """)
+            # Migrar datos: dividir nombre en apellido y nombre
+            c.execute("SELECT * FROM jugadores_old")
+            jugadores_viejos = c.fetchall()
+            for j in jugadores_viejos:
+                nombre_completo = j['nombre'] if 'nombre' in j.keys() else ''
+                # Dividir por espacio: última palabra = apellido, resto = nombre
+                partes = nombre_completo.strip().split()
+                if len(partes) >= 2:
+                    apellido = partes[-1]
+                    nombre = ' '.join(partes[:-1])
+                else:
+                    apellido = nombre_completo
+                    nombre = ''
+                c.execute(
+                    "INSERT INTO jugadores (id, apellido, nombre, dni, fecha_nacimiento, dorsal, equipo_id) VALUES (?,?,?,?,?,?,?)",
+                    (j['id'], apellido, nombre, None, None, j['dorsal'], j['equipo_id'])
+                )
+            # Eliminar tabla vieja
+            c.execute("DROP TABLE jugadores_old")
+            conn.commit()
+            print("Migración completada.")
+        except Exception as e:
+            print(f"Error en migración: {e}")
+            conn.rollback()
+    
     # Tabla de torneos (antes de equipos por FK)
     c.execute("""
         CREATE TABLE IF NOT EXISTS torneos (
