@@ -560,26 +560,29 @@ def obtener_puntos_equipo(partido_id, equipo_id):
 def obtener_estadisticas_torneo(torneo_id, categoria_id=None):
     """Obtiene estadísticas acumuladas de todos los jugadores del torneo"""
     conn = get_connection()
+    
+    # Subquery para calcular estadísticas
     query = """
-        SELECT 
-            j.id as jugador_id,
-            j.apellido,
-            j.nombre,
-            j.dorsal,
-            eq.nombre as equipo_nombre,
-            eq.categoria_id,
-            COALESCE(SUM(CASE WHEN ev.tipo IN ('+1','+2','+3') THEN ev.valor ELSE 0 END), 0) as pts,
-            COALESCE(SUM(CASE WHEN ev.tipo = 'Rebote Ofensivo' THEN 1 ELSE 0 END), 0) as reb_of,
-            COALESCE(SUM(CASE WHEN ev.tipo = 'Rebote Defensivo' THEN 1 ELSE 0 END), 0) as reb_def,
-            COALESCE(SUM(CASE WHEN ev.tipo = 'Asistencia' THEN 1 ELSE 0 END), 0) as asistencias,
-            COALESCE(SUM(CASE WHEN ev.tipo = 'Recupero' THEN 1 ELSE 0 END), 0) as recuperos,
-            COALESCE(SUM(CASE WHEN ev.tipo = 'Falta' THEN 1 ELSE 0 END), 0) as faltas,
-            COUNT(DISTINCT p.id) as partidos_jugados
-        FROM jugadores j
-        JOIN equipos eq ON j.equipo_id = eq.id
-        LEFT JOIN eventos ev ON j.id = ev.jugador_id
-        LEFT JOIN partidos p ON ev.partido_id = p.id
-        WHERE eq.torneo_id = ?
+        SELECT * FROM (
+            SELECT 
+                j.id as jugador_id,
+                j.apellido,
+                j.nombre,
+                j.dorsal,
+                eq.nombre as equipo_nombre,
+                eq.categoria_id,
+                COALESCE(SUM(CASE WHEN ev.tipo IN ('+1','+2','+3') THEN ev.valor ELSE 0 END), 0) as pts,
+                COALESCE(SUM(CASE WHEN ev.tipo = 'Rebote Ofensivo' THEN 1 ELSE 0 END), 0) as reb_of,
+                COALESCE(SUM(CASE WHEN ev.tipo = 'Rebote Defensivo' THEN 1 ELSE 0 END), 0) as reb_def,
+                COALESCE(SUM(CASE WHEN ev.tipo = 'Asistencia' THEN 1 ELSE 0 END), 0) as asistencias,
+                COALESCE(SUM(CASE WHEN ev.tipo = 'Recupero' THEN 1 ELSE 0 END), 0) as recuperos,
+                COALESCE(SUM(CASE WHEN ev.tipo = 'Falta' THEN 1 ELSE 0 END), 0) as faltas,
+                COUNT(DISTINCT p.id) as partidos_jugados
+            FROM jugadores j
+            JOIN equipos eq ON j.equipo_id = eq.id
+            LEFT JOIN eventos ev ON j.id = ev.jugador_id
+            LEFT JOIN partidos p ON ev.partido_id = p.id
+            WHERE eq.torneo_id = ?
     """
     params = [torneo_id]
     
@@ -588,11 +591,9 @@ def obtener_estadisticas_torneo(torneo_id, categoria_id=None):
         params.append(categoria_id)
     
     query += """
-        GROUP BY j.id, j.apellido, j.nombre, j.dorsal, eq.nombre, eq.categoria_id
-        HAVING COALESCE(SUM(CASE WHEN ev.tipo IN ('+1','+2','+3') THEN ev.valor ELSE 0 END), 0) > 0 
-            OR COALESCE(SUM(CASE WHEN ev.tipo = 'Rebote Ofensivo' THEN 1 ELSE 0 END), 0) > 0 
-            OR COALESCE(SUM(CASE WHEN ev.tipo = 'Rebote Defensivo' THEN 1 ELSE 0 END), 0) > 0 
-            OR COALESCE(SUM(CASE WHEN ev.tipo = 'Asistencia' THEN 1 ELSE 0 END), 0) > 0
+            GROUP BY j.id, j.apellido, j.nombre, j.dorsal, eq.nombre, eq.categoria_id
+        )
+        WHERE pts > 0 OR reb_of > 0 OR reb_def > 0 OR asistencias > 0
         ORDER BY pts DESC, (reb_of + reb_def) DESC
     """
     
