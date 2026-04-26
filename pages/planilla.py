@@ -21,22 +21,32 @@ from db import (
 
 st.set_page_config(page_title="Mesa de Control - Planilla", page_icon="📋", layout="wide")
 
-# Verificar acceso (simplificado - misma contraseña que admin)
+# Verificar acceso (simplificado)
 if "planilla_access" not in st.session_state:
     st.session_state.planilla_access = False
 
 if not st.session_state.planilla_access:
     st.warning("🔒 Ingresá la contraseña de mesa de control")
     pwd = st.text_input("Contraseña", type="password")
+    
+    # Obtener contraseña hasheada de la BD para comparar
     if st.button("Ingresar"):
-        # Verificar contra la misma contraseña de admin (mesero)
-        from db import verificar_usuario
-        user = verificar_usuario("mesero", pwd)
-        if user:
-            st.session_state.planilla_access = True
-            st.rerun()
+        import hashlib
+        from db import get_connection
+        
+        conn = get_connection()
+        row = conn.execute("SELECT password FROM usuarios WHERE username='mesero'").fetchone()
+        conn.close()
+        
+        if row:
+            pwd_hash = hashlib.sha256(pwd.encode()).hexdigest()
+            if pwd_hash == row['password']:
+                st.session_state.planilla_access = True
+                st.rerun()
+            else:
+                st.error("Contraseña incorrecta")
         else:
-            st.error("Contraseña incorrecta")
+            st.error("Usuario mesero no encontrado. Creá uno en Admin.")
     st.stop()
 
 # CSS para estilo planilla
