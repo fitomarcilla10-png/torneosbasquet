@@ -178,14 +178,7 @@ with tab_estadisticas:
         cat_est = st.selectbox("Categoría", cat_nombres, key="est_cat")
     
     # Obtener estadísticas acumuladas
-    from db import listar_categorias as get_cat_id
-    cat_id = None
-    for c in cats:
-        if c['nombre'] == cat_est:
-            cat_id = c['id']
-            break
-    
-    stats_torneo = obtener_estadisticas_torneo(torneo_id, cat_id)
+    stats_torneo = obtener_estadisticas_torneo(torneo_id, cat_est)
     
     if not stats_torneo:
         st.info("No hay estadísticas disponibles para esta categoría.")

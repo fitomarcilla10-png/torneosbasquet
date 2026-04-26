@@ -557,11 +557,11 @@ def obtener_puntos_equipo(partido_id, equipo_id):
     return row["total"] if row else 0
 
 
-def obtener_estadisticas_torneo(torneo_id, categoria_id=None):
+def obtener_estadisticas_torneo(torneo_id, categoria_nombre=None):
     """Obtiene estadísticas acumuladas de todos los jugadores del torneo"""
     conn = get_connection()
     
-    # Query base sin filtro de categoría
+    # Query base
     base_query = """
         SELECT 
             j.id as jugador_id,
@@ -569,7 +569,7 @@ def obtener_estadisticas_torneo(torneo_id, categoria_id=None):
             j.nombre,
             j.dorsal,
             eq.nombre as equipo_nombre,
-            eq.categoria_id,
+            eq.categoria,
             COALESCE(SUM(CASE WHEN ev.tipo IN ('+1','+2','+3') THEN ev.valor ELSE 0 END), 0) as pts,
             COALESCE(SUM(CASE WHEN ev.tipo = 'Rebote Ofensivo' THEN 1 ELSE 0 END), 0) as reb_of,
             COALESCE(SUM(CASE WHEN ev.tipo = 'Rebote Defensivo' THEN 1 ELSE 0 END), 0) as reb_def,
@@ -584,13 +584,13 @@ def obtener_estadisticas_torneo(torneo_id, categoria_id=None):
         WHERE eq.torneo_id = ?
     """
     
-    if categoria_id:
-        # Ejecutar con filtro de categoría
-        rows = conn.execute(base_query + " AND eq.categoria_id = ? GROUP BY j.id, j.apellido, j.nombre, j.dorsal, eq.nombre, eq.categoria_id", 
-                          (torneo_id, categoria_id)).fetchall()
+    if categoria_nombre:
+        # Ejecutar con filtro de categoría (por nombre, no por ID)
+        rows = conn.execute(base_query + " AND eq.categoria = ? GROUP BY j.id, j.apellido, j.nombre, j.dorsal, eq.nombre, eq.categoria", 
+                          (torneo_id, categoria_nombre)).fetchall()
     else:
         # Ejecutar sin filtro de categoría
-        rows = conn.execute(base_query + " GROUP BY j.id, j.apellido, j.nombre, j.dorsal, eq.nombre, eq.categoria_id", 
+        rows = conn.execute(base_query + " GROUP BY j.id, j.apellido, j.nombre, j.dorsal, eq.nombre, eq.categoria", 
                           (torneo_id,)).fetchall()
     
     # Filtrar resultados con estadísticas en Python
