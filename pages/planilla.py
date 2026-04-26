@@ -10,7 +10,7 @@ import time
 # Agregar el directorio padre al path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from db import (
-    init_db, obtener_partido, listar_jugadores, obtener_stats_partido,
+    init_db, listar_partidos, obtener_partido, listar_jugadores, obtener_stats_partido,
     obtener_puntos_equipo, registrar_evento, obtener_ultimos_eventos,
     borrar_ultimo_evento, guardar_puntaje_cuarto, obtener_puntaje_cuartos,
     ingresar_jugador_cancha, sacar_jugador_cancha, obtener_en_cancha,
