@@ -21,21 +21,22 @@ from db import (
 
 st.set_page_config(page_title="Mesa de Control - Planilla", page_icon="📋", layout="wide")
 
-# Verificar login (mismo sistema que admin.py)
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-    st.session_state.usuario = None
-    st.session_state.rol = None
+# Verificar acceso (simplificado - misma contraseña que admin)
+if "planilla_access" not in st.session_state:
+    st.session_state.planilla_access = False
 
-if not st.session_state.authenticated:
-    st.warning("🔒 Debes iniciar sesión primero")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🔐 Ir al Login", type="primary"):
-            st.switch_page("pages/admin.py")
-    with col2:
-        if st.button("🏠 Ir al Inicio"):
-            st.switch_page("app.py")
+if not st.session_state.planilla_access:
+    st.warning("🔒 Ingresá la contraseña de mesa de control")
+    pwd = st.text_input("Contraseña", type="password")
+    if st.button("Ingresar"):
+        # Verificar contra la misma contraseña de admin (mesero)
+        from db import verificar_usuario
+        user = verificar_usuario("mesero", pwd)
+        if user:
+            st.session_state.planilla_access = True
+            st.rerun()
+        else:
+            st.error("Contraseña incorrecta")
     st.stop()
 
 # CSS para estilo planilla
@@ -325,7 +326,13 @@ if eventos:
 else:
     st.info("Sin eventos registrados")
 
-# Botón volver
+# Botón volver y cerrar sesión
 st.markdown("---")
-if st.button("⬅️ Volver a Admin"):
-    st.switch_page("pages/admin.py")
+col_v1, col_v2 = st.columns(2)
+with col_v1:
+    if st.button("⬅️ Volver a Admin"):
+        st.switch_page("pages/admin.py")
+with col_v2:
+    if st.button("🔒 Cerrar Sesión"):
+        st.session_state.planilla_access = False
+        st.rerun()

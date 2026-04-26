@@ -1200,92 +1200,166 @@ elif pagina == "📄 Exportar":
                 mime="application/pdf"
             )
         
-        # Botón Planilla de Juego (formato papel)
+        # Botón Planilla de Juego COMPLETA (con datos del partido)
         st.markdown("---")
-        if st.button("📋 Descargar Planilla de Juego", type="primary"):
+        if st.button("📋 Descargar Planilla de Juego Completa", type="primary"):
+            from fpdf import FPDF
+            
             pdf_planilla = FPDF(orientation='L', unit='mm', format='A4')
             pdf_planilla.add_page()
-            pdf_planilla.set_font("Helvetica", "B", 12)
+            pdf_planilla.set_font("Helvetica", "B", 10)
             
-            # Título
-            pdf_planilla.cell(0, 10, f"PLANILLA DE JUEGO - {partido['rama']} {partido['categoria']}", ln=True, align="C")
-            pdf_planilla.set_font("Helvetica", "", 10)
-            pdf_planilla.cell(0, 6, f"Fecha: {partido['fecha']}", ln=True, align="C")
-            pdf_planilla.ln(5)
+            # === HEADER ===
+            pdf_planilla.cell(0, 6, "LIGA BINACIONAL DE BASQUET AUSTRAL 2026", ln=True, align="C")
+            pdf_planilla.cell(0, 6, "PLANILLA OFICIAL DE JUEGO", ln=True, align="C")
+            pdf_planilla.ln(2)
             
-            # Encabezado de equipos
-            pdf_planilla.set_font("Helvetica", "B", 11)
-            col_width = 130
-            pdf_planilla.cell(col_width, 8, partido['local_nombre'], 1, 0, "C")
-            pdf_planilla.cell(20, 8, "VS", 1, 0, "C")
-            pdf_planilla.cell(col_width, 8, partido['visitante_nombre'], 1, 1, "C")
+            # Info del partido
+            pdf_planilla.set_font("Helvetica", "", 8)
+            pdf_planilla.cell(40, 5, f"CATEGORÍA: {partido['categoria']}", 0, 0)
+            pdf_planilla.cell(30, 5, f"RAMA: {partido['rama']}", 0, 0)
+            pdf_planilla.cell(40, 5, f"JUEGO N°: {partido_id}", 0, 0)
+            pdf_planilla.cell(40, 5, f"FECHA: {partido['fecha']}", 0, 1)
             pdf_planilla.ln(3)
             
-            # Tabla de jugadores y espacio para anotaciones
+            # === RESULTADO FINAL ===
+            pdf_planilla.set_font("Helvetica", "B", 12)
+            pdf_planilla.cell(0, 8, f"RESULTADO FINAL: {partido['local_nombre']} {pts_local} - {pts_visit} {partido['visitante_nombre']}", ln=True, align="C")
+            pdf_planilla.ln(2)
+            
+            # === TABLA DE JUGADORES CON DATOS REALES ===
+            col_width = 135
+            
             for equipo_id, equipo_nombre, is_local in [
                 (partido['equipo_local_id'], partido['local_nombre'], True),
                 (partido['equipo_visitante_id'], partido['visitante_nombre'], False)
             ]:
-                pdf_planilla.set_font("Helvetica", "B", 10)
-                pdf_planilla.cell(0, 8, f"EQUIPO: {equipo_nombre}", ln=True)
-                pdf_planilla.set_font("Helvetica", "", 8)
+                pdf_planilla.set_font("Helvetica", "B", 9)
+                pdf_planilla.cell(col_width, 6, f"EQUIPO: {equipo_nombre}", 0, 1)
                 
-                # Headers de la planilla
-                headers = ["#", "JUGADOR", "FALTAS", "PTS", ""]
-                widths = [10, 60, 80, 15, 85]
-                for i, h in enumerate(headers):
-                    pdf_planilla.cell(widths[i], 6, h, 1, 0, "C")
-                pdf_planilla.ln()
+                # Headers
+                pdf_planilla.set_font("Helvetica", "B", 7)
+                pdf_planilla.cell(8, 5, "N°", 1, 0, "C")
+                pdf_planilla.cell(8, 5, "Lic", 1, 0, "C")
+                pdf_planilla.cell(45, 5, "APELLIDOS Y NOMBRES", 1, 0, "C")
+                pdf_planilla.cell(5, 5, "E", 1, 0, "C")
+                # Faltas por cuarto
+                for c in ["1", "2", "3", "4", "P"]:
+                    pdf_planilla.cell(4, 5, c, 1, 0, "C")
+                pdf_planilla.cell(8, 5, "PTS", 1, 0, "C")
+                pdf_planilla.cell(6, 5, "CJ", 1, 1, "C")
                 
-                # Filas para cada jugador
+                # Datos de jugadores
+                pdf_planilla.set_font("Helvetica", "", 7)
                 jugadores_eq = listar_jugadores(equipo_id)
-                for jug in jugadores_eq:
-                    pdf_planilla.cell(widths[0], 8, str(jug['dorsal']), 1, 0, "C")
-                    pdf_planilla.cell(widths[1], 8, jug['nombre'][:25], 1, 0, "L")
-                    # Espacios para faltas (5 casillas)
-                    pdf_planilla.cell(12, 8, "", 1, 0, "C")
-                    pdf_planilla.cell(12, 8, "", 1, 0, "C")
-                    pdf_planilla.cell(12, 8, "", 1, 0, "C")
-                    pdf_planilla.cell(12, 8, "", 1, 0, "C")
-                    pdf_planilla.cell(12, 8, "", 1, 0, "C")
-                    # Puntos
-                    pdf_planilla.cell(20, 8, "", 1, 0, "C")
-                    # Acumulado
-                    pdf_planilla.cell(widths[4], 8, "", 1, 1, "C")
+                equipo_stats = [s for s in stats if s['equipo_id'] == equipo_id]
+                stats_dict = {s['jugador_id']: s for s in equipo_stats}
                 
-                # Fila de totales
-                pdf_planilla.set_font("Helvetica", "B", 8)
-                pdf_planilla.cell(70, 8, "TOTALES", 1, 0, "R")
-                pdf_planilla.cell(80, 8, "", 1, 0, "C")
-                pdf_planilla.cell(15, 8, "", 1, 0, "C")
-                pdf_planilla.cell(85, 8, "", 1, 1, "C")
-                pdf_planilla.ln(5)
+                for jug in jugadores_eq[:15]:  # Max 15 jugadores
+                    jug_stats = stats_dict.get(jug['id'], {})
+                    faltas = jug_stats.get('faltas', 0) if isinstance(jug_stats, dict) else 0
+                    pts = jug_stats.get('pts', 0) if isinstance(jug_stats, dict) else 0
+                    cj = obtener_cuartos_jugados(partido_id, jug['id'])
+                    
+                    nombre = f"{jug.get('apellido', '')}, {jug.get('nombre', '')}" if jug.get('apellido') else jug.get('nombre_completo', jug['nombre'])
+                    
+                    pdf_planilla.cell(8, 5, str(jug['dorsal']), 1, 0, "C")
+                    pdf_planilla.cell(8, 5, "", 1, 0, "C")  # Licencia
+                    pdf_planilla.cell(45, 5, nombre[:30], 1, 0, "L")
+                    pdf_planilla.cell(5, 5, "", 1, 0, "C")  # E
+                    # Faltas (X si tiene falta en ese número)
+                    for i in range(1, 6):
+                        marca = "X" if faltas >= i else ""
+                        pdf_planilla.cell(4, 5, marca, 1, 0, "C")
+                    pdf_planilla.cell(8, 5, str(pts), 1, 0, "C")
+                    pdf_planilla.cell(6, 5, str(cj), 1, 1, "C")
+                
+                # Filas vacías si faltan jugadores
+                for _ in range(15 - len(jugadores_eq)):
+                    pdf_planilla.cell(8, 5, "", 1, 0)
+                    pdf_planilla.cell(8, 5, "", 1, 0)
+                    pdf_planilla.cell(45, 5, "", 1, 0)
+                    pdf_planilla.cell(5, 5, "", 1, 0)
+                    for _ in range(5):
+                        pdf_planilla.cell(4, 5, "", 1, 0)
+                    pdf_planilla.cell(8, 5, "", 1, 0)
+                    pdf_planilla.cell(6, 5, "", 1, 1)
+                
+                pdf_planilla.ln(3)
             
-            # Sección de firmas
-            pdf_planilla.ln(10)
-            pdf_planilla.set_font("Helvetica", "B", 10)
-            pdf_planilla.cell(0, 8, "FIRMAS", ln=True, align="C")
+            # === PUNTAJE POR CUARTOS ===
+            pdf_planilla.set_font("Helvetica", "B", 9)
+            pdf_planilla.cell(0, 6, "PUNTAJE POR CUARTOS", ln=True, align="C")
+            
+            cuartos = obtener_puntaje_cuartos(partido_id)
+            
+            pdf_planilla.set_font("Helvetica", "B", 8)
+            pdf_planilla.cell(60, 5, "EQUIPO", 1, 0, "C")
+            pdf_planilla.cell(20, 5, "1° C", 1, 0, "C")
+            pdf_planilla.cell(20, 5, "2° C", 1, 0, "C")
+            pdf_planilla.cell(20, 5, "3° C", 1, 0, "C")
+            pdf_planilla.cell(20, 5, "4° C", 1, 0, "C")
+            pdf_planilla.cell(20, 5, "PRÓR.", 1, 0, "C")
+            pdf_planilla.cell(25, 5, "TOTAL", 1, 1, "C")
+            
+            pdf_planilla.set_font("Helvetica", "", 8)
+            for equipo_id, equipo_nombre in [
+                (partido['equipo_local_id'], partido['local_nombre']),
+                (partido['equipo_visitante_id'], partido['visitante_nombre'])
+            ]:
+                eq_cuartos = {c['cuarto']: c['puntos'] for c in cuartos if c['equipo_id'] == equipo_id}
+                total = sum(eq_cuartos.values())
+                
+                pdf_planilla.cell(60, 5, equipo_nombre[:25], 1, 0, "L")
+                pdf_planilla.cell(20, 5, str(eq_cuartos.get(1, 0)), 1, 0, "C")
+                pdf_planilla.cell(20, 5, str(eq_cuartos.get(2, 0)), 1, 0, "C")
+                pdf_planilla.cell(20, 5, str(eq_cuartos.get(3, 0)), 1, 0, "C")
+                pdf_planilla.cell(20, 5, str(eq_cuartos.get(4, 0)), 1, 0, "C")
+                pdf_planilla.cell(20, 5, str(eq_cuartos.get(5, 0)), 1, 0, "C")
+                pdf_planilla.cell(25, 5, str(total), 1, 1, "C")
+            
             pdf_planilla.ln(5)
             
-            pdf_planilla.set_font("Helvetica", "", 9)
+            # === FALTAS DE EQUIPOS ===
+            pdf_planilla.set_font("Helvetica", "B", 9)
+            pdf_planilla.cell(0, 6, "FALTAS DE EQUIPOS", ln=True, align="C")
+            
+            # Calcular faltas por equipo
+            faltas_local = sum(s['faltas'] for s in stats if s['equipo_id'] == partido['equipo_local_id'])
+            faltas_visit = sum(s['faltas'] for s in stats if s['equipo_id'] == partido['equipo_visitante_id'])
+            
+            pdf_planilla.set_font("Helvetica", "", 8)
+            pdf_planilla.cell(135, 5, f"{partido['local_nombre']}: {faltas_local} faltas", 0, 0)
+            pdf_planilla.cell(135, 5, f"{partido['visitante_nombre']}: {faltas_visit} faltas", 0, 1)
+            pdf_planilla.ln(5)
+            
+            # === FIRMAS ===
+            pdf_planilla.set_font("Helvetica", "B", 9)
+            pdf_planilla.cell(0, 6, "FIRMAS", ln=True, align="C")
+            pdf_planilla.ln(3)
+            
+            pdf_planilla.set_font("Helvetica", "", 8)
             col_firma = 90
-            pdf_planilla.cell(col_firma, 8, "_______________________", 0, 0, "C")
-            pdf_planilla.cell(col_firma, 8, "_______________________", 0, 0, "C")
-            pdf_planilla.cell(col_firma, 8, "_______________________", 0, 1, "C")
-            pdf_planilla.cell(col_firma, 6, "Capitán Local", 0, 0, "C")
-            pdf_planilla.cell(col_firma, 6, "Capitán Visitante", 0, 0, "C")
-            pdf_planilla.cell(col_firma, 6, "Mesa de Control", 0, 1, "C")
+            pdf_planilla.cell(col_firma, 6, "_______________________", 0, 0, "C")
+            pdf_planilla.cell(col_firma, 6, "_______________________", 0, 0, "C")
+            pdf_planilla.cell(col_firma, 6, "_______________________", 0, 1, "C")
+            pdf_planilla.cell(col_firma, 5, "Capitán Local", 0, 0, "C")
+            pdf_planilla.cell(col_firma, 5, "Capitán Visitante", 0, 0, "C")
+            pdf_planilla.cell(col_firma, 5, "Mesa de Control", 0, 1, "C")
             pdf_planilla.ln(5)
-            pdf_planilla.cell(col_firma, 8, "_______________________", 0, 0, "C")
-            pdf_planilla.cell(col_firma, 8, "_______________________", 0, 1, "C")
-            pdf_planilla.cell(col_firma, 6, "Árbitro 1", 0, 0, "C")
-            pdf_planilla.cell(col_firma, 6, "Árbitro 2", 0, 1, "C")
+            
+            pdf_planilla.cell(col_firma, 6, "_______________________", 0, 0, "C")
+            pdf_planilla.cell(col_firma, 6, "_______________________", 0, 0, "C")
+            pdf_planilla.cell(col_firma, 6, "_______________________", 0, 1, "C")
+            pdf_planilla.cell(col_firma, 5, "Árbitro 1", 0, 0, "C")
+            pdf_planilla.cell(col_firma, 5, "Árbitro 2", 0, 0, "C")
+            pdf_planilla.cell(col_firma, 5, "Responsable", 0, 1, "C")
             
             pdf_planilla_bytes = bytes(pdf_planilla.output())
             st.download_button(
-                "⬇️ Descargar Planilla",
+                "⬇️ Descargar Planilla Completa",
                 data=pdf_planilla_bytes,
-                file_name=f"planilla_{partido['local_nombre']}_vs_{partido['visitante_nombre']}.pdf",
+                file_name=f"planilla_completa_{partido['local_nombre']}_vs_{partido['visitante_nombre']}.pdf",
                 mime="application/pdf"
             )
 
