@@ -4,11 +4,12 @@ Página pública para ver tablas de posiciones y estadísticas de partidos.
 """
 import streamlit as st
 import pandas as pd
+from streamlit_autorefresh import st_autorefresh
 from db import (
     init_db, listar_torneos, listar_equipos, listar_partidos, obtener_partido,
     obtener_stats_partido, obtener_puntos_equipo, obtener_cuartos_jugados,
     listar_jugadores, obtener_puntaje_cuartos, listar_categorias,
-    obtener_ultimos_eventos, obtener_tiempo_total
+    obtener_ultimos_eventos, obtener_tiempo_total, obtener_estadisticas_torneo
 )
 
 st.set_page_config(page_title="Torneos de Basket", page_icon="🏀", layout="wide")
@@ -76,7 +77,7 @@ torneo_sel = st.selectbox("Seleccioná un Torneo", list(torneo_opts.keys()))
 torneo_id = torneo_opts[torneo_sel]
 
 # Tabs principales
-tab_posiciones, tab_partidos = st.tabs(["📊 Tabla de Posiciones", "🏀 Partidos y Estadísticas"])
+tab_posiciones, tab_estadisticas, tab_partidos = st.tabs(["📊 Tabla de Posiciones", "🏆 Estadísticas del Torneo", "🏀 Partidos"])
 
 # ═══════════════════════════════════════════════════════════
 # TAB 1: TABLA DE POSICIONES
@@ -161,25 +162,63 @@ with tab_posiciones:
             return [''] * len(row)
         
         st.dataframe(df_tabla.style.apply(highlight_top4, axis=1), use_container_width=True)
-        
-        # Stats del torneo
-        st.markdown("---")
-        st.markdown('<p class="sub-header">📈 Estadísticas del Torneo</p>', unsafe_allow_html=True)
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Partidos Jugados", len(partidos_torneo))
-        with col2:
-            total_pts = sum(p['PF'] for p in tabla.values())
-            st.metric("Puntos Anotados", total_pts)
-        with col3:
-            avg_pts = round(total_pts / len(partidos_torneo) / 2, 1) if partidos_torneo else 0
-            st.metric("Promedio por Partido", avg_pts)
-        with col4:
-            st.metric("Equipos", len(equipos))
 
 # ═══════════════════════════════════════════════════════════
-# TAB 2: PARTIDOS Y ESTADÍSTICAS
+# TAB 2: ESTADÍSTICAS DEL TORNEO
+# ═══════════════════════════════════════════════════════════
+with tab_estadisticas:
+    st.markdown(f'<p class="sub-header">🏆 Estadísticas del Torneo — {torneo_sel}</p>', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        rama_est = st.selectbox("Rama", ["Masculino", "Femenino"], key="est_rama")
+    with col2:
+        cats = listar_categorias()
+        cat_nombres = [c['nombre'] for c in cats] if cats else ["U13", "U15", "U17", "Primera"]
+        cat_est = st.selectbox("Categoría", cat_nombres, key="est_cat")
+    
+    # Obtener estadísticas acumuladas
+    from db import listar_categorias as get_cat_id
+    cat_id = None
+    for c in cats:
+        if c['nombre'] == cat_est:
+            cat_id = c['id']
+            break
+    
+    stats_torneo = obtener_estadisticas_torneo(torneo_id, cat_id)
+    
+    if not stats_torneo:
+        st.info("No hay estadísticas disponibles para esta categoría.")
+    else:
+        # Tabla de goleadores
+        st.markdown("#### 🔥 Goleadores")
+        df_goleadores = pd.DataFrame(stats_torneo[:10])
+        df_goleadores['Jugador'] = df_goleadores['apellido'] + ', ' + df_goleadores['nombre']
+        df_goleadores['Equipo'] = df_goleadores['equipo_nombre']
+        df_goleadores = df_goleadores[['#', 'Jugador', 'Equipo', 'pts', 'partidos_jugados']]
+        df_goleadores.columns = ['#', 'Jugador', 'Equipo', 'PTS', 'PJ']
+        df_goleadores.index = range(1, len(df_goleadores) + 1)
+        df_goleadores.index.name = "Pos"
+        st.dataframe(df_goleadores, use_container_width=True)
+        
+        # Líderes en otras estadísticas
+        col_l1, col_l2 = st.columns(2)
+        with col_l1:
+            st.markdown("#### 💪 Máximos Reboteadores")
+            df_reb = pd.DataFrame(sorted(stats_torneo, key=lambda x: x['reb_of'] + x['reb_def'], reverse=True)[:5])
+            df_reb['Jugador'] = df_reb['apellido'] + ', ' + df_reb['nombre']
+            df_reb['REB'] = df_reb['reb_of'] + df_reb['reb_def']
+            st.dataframe(df_reb[['Jugador', 'REB', 'reb_of', 'reb_def']].rename(columns={'reb_of': 'RO', 'reb_def': 'RD'}), 
+                        hide_index=True, use_container_width=True)
+        with col_l2:
+            st.markdown("#### 🎯 Máximos Asistidores")
+            df_ast = pd.DataFrame(sorted(stats_torneo, key=lambda x: x['asistencias'], reverse=True)[:5])
+            df_ast['Jugador'] = df_ast['apellido'] + ', ' + df_ast['nombre']
+            st.dataframe(df_ast[['Jugador', 'asistencias']].rename(columns={'asistencias': 'AST'}), 
+                        hide_index=True, use_container_width=True)
+
+# ═══════════════════════════════════════════════════════════
+# TAB 3: PARTIDOS
 # ═══════════════════════════════════════════════════════════
 with tab_partidos:
     st.markdown('<p class="sub-header">🏀 Partidos y Estadísticas</p>', unsafe_allow_html=True)
@@ -231,8 +270,11 @@ with tab_partidos:
         
         # ═══ ESTADÍSTICAS EN VIVO (para partidos en curso) ═══
         if partido['estado'] == 'En curso':
+            # Auto-refresh cada 30 segundos para partidos en vivo
+            st_autorefresh(interval=30000, limit=None, key=f"{partido_id}_autorefresh")
+            
             st.markdown("---")
-            st.markdown('<p class="sub-header">🔴 Estadísticas en Vivo</p>', unsafe_allow_html=True)
+            st.markdown('<p class="sub-header">🔴 Estadísticas en Vivo (se actualiza cada 30s)</p>', unsafe_allow_html=True)
             
             stats = obtener_stats_partido(partido_id)
             
@@ -406,6 +448,35 @@ with tab_partidos:
                 
                 df_cuartos = pd.DataFrame(data_cuartos)
                 st.dataframe(df_cuartos, hide_index=True, use_container_width=True)
+        
+        # ═══ LOG DE EVENTOS (para todos los partidos) ═══
+        st.markdown("---")
+        st.markdown('<p class="sub-header">📝 Log de Eventos</p>', unsafe_allow_html=True)
+        
+        # Auto-refresh para partidos en curso
+        if partido['estado'] == 'En curso':
+            st_autorefresh(interval=30000, limit=None, key=f"log_{partido_id}_refresh")
+            st.caption("🔄 Se actualiza automáticamente cada 30 segundos")
+        
+        col_ev1, col_ev2 = st.columns([1, 3])
+        with col_ev1:
+            cantidad_eventos = st.selectbox("Mostrar", ["Últimos 10", "Últimos 20", "Todos"], key=f"log_{partido_id}")
+        
+        if cantidad_eventos == "Últimos 10":
+            eventos = obtener_ultimos_eventos(partido_id, 10)
+        elif cantidad_eventos == "Últimos 20":
+            eventos = obtener_ultimos_eventos(partido_id, 20)
+        else:
+            from db import obtener_todos_eventos
+            eventos = obtener_todos_eventos(partido_id)
+        
+        with col_ev2:
+            if eventos:
+                for ev in eventos:
+                    tiempo_str = ev.get('timestamp', '')
+                    st.write(f"🔹 **{ev['equipo_nombre']}** — #{ev['dorsal']} {ev['jugador_nombre']} — {ev['tipo']} (Q{ev['cuarto']}) — ⏱️ {tiempo_str}")
+            else:
+                st.info("Sin eventos registrados.")
 
 # Footer
 st.markdown("---")

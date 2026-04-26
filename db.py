@@ -53,10 +53,14 @@ def init_db():
     c.execute("""
         CREATE TABLE IF NOT EXISTS jugadores (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            apellido TEXT NOT NULL,
             nombre TEXT NOT NULL,
+            dni TEXT,
+            fecha_nacimiento TEXT,
             dorsal INTEGER NOT NULL,
             equipo_id INTEGER NOT NULL,
-            FOREIGN KEY (equipo_id) REFERENCES equipos(id) ON DELETE CASCADE
+            FOREIGN KEY (equipo_id) REFERENCES equipos(id) ON DELETE CASCADE,
+            UNIQUE(equipo_id, dni)
         )
     """)
     c.execute("""
@@ -310,12 +314,12 @@ def eliminar_equipo(equipo_id):
 
 
 # --- JUGADORES ---
-def agregar_jugador(nombre, dorsal, equipo_id):
+def agregar_jugador(apellido, nombre, dni, fecha_nacimiento, dorsal, equipo_id):
     conn = get_connection()
     c = conn.cursor()
     c.execute(
-        "INSERT INTO jugadores (nombre, dorsal, equipo_id) VALUES (?,?,?)",
-        (nombre, dorsal, equipo_id),
+        "INSERT INTO jugadores (apellido, nombre, dni, fecha_nacimiento, dorsal, equipo_id) VALUES (?,?,?,?,?,?)",
+        (apellido, nombre, dni, fecha_nacimiento, dorsal, equipo_id),
     )
     conn.commit()
     jug_id = c.lastrowid
@@ -326,10 +330,23 @@ def agregar_jugador(nombre, dorsal, equipo_id):
 def listar_jugadores(equipo_id):
     conn = get_connection()
     rows = conn.execute(
-        "SELECT * FROM jugadores WHERE equipo_id = ? ORDER BY dorsal", (equipo_id,)
+        "SELECT *, (apellido || ', ' || nombre) as nombre_completo FROM jugadores WHERE equipo_id = ? ORDER BY dorsal", (equipo_id,)
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def verificar_dni_existente(dni, equipo_id):
+    """Verifica si el DNI ya existe en el equipo (para validación)"""
+    if not dni:
+        return False
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT id FROM jugadores WHERE dni = ? AND equipo_id = ?",
+        (dni, equipo_id)
+    ).fetchone()
+    conn.close()
+    return row is not None
 
 
 def eliminar_jugador(jugador_id):
@@ -489,6 +506,48 @@ def obtener_puntos_equipo(partido_id, equipo_id):
     """, (partido_id, equipo_id)).fetchone()
     conn.close()
     return row["total"] if row else 0
+
+
+def obtener_estadisticas_torneo(torneo_id, categoria_id=None):
+    """Obtiene estadísticas acumuladas de todos los jugadores del torneo"""
+    conn = get_connection()
+    query = """
+        SELECT 
+            j.id as jugador_id,
+            j.apellido,
+            j.nombre,
+            j.dorsal,
+            e.nombre as equipo_nombre,
+            eq.categoria_id,
+            COALESCE(SUM(CASE WHEN ev.tipo IN ('+1','+2','+3') THEN ev.valor ELSE 0 END), 0) as pts,
+            COALESCE(SUM(CASE WHEN ev.tipo = 'Rebote Ofensivo' THEN 1 ELSE 0 END), 0) as reb_of,
+            COALESCE(SUM(CASE WHEN ev.tipo = 'Rebote Defensivo' THEN 1 ELSE 0 END), 0) as reb_def,
+            COALESCE(SUM(CASE WHEN ev.tipo = 'Asistencia' THEN 1 ELSE 0 END), 0) as asistencias,
+            COALESCE(SUM(CASE WHEN ev.tipo = 'Recupero' THEN 1 ELSE 0 END), 0) as recuperos,
+            COALESCE(SUM(CASE WHEN ev.tipo = 'Falta' THEN 1 ELSE 0 END), 0) as faltas,
+            COUNT(DISTINCT p.id) as partidos_jugados
+        FROM jugadores j
+        JOIN equipos eq ON j.equipo_id = eq.id
+        JOIN equipos e ON j.equipo_id = e.id
+        LEFT JOIN eventos ev ON j.id = ev.jugador_id
+        LEFT JOIN partidos p ON ev.partido_id = p.id
+        WHERE eq.torneo_id = ?
+    """
+    params = [torneo_id]
+    
+    if categoria_id:
+        query += " AND eq.categoria_id = ?"
+        params.append(categoria_id)
+    
+    query += """
+        GROUP BY j.id, j.apellido, j.nombre, j.dorsal, e.nombre, eq.categoria_id
+        HAVING pts > 0 OR reb_of > 0 OR reb_def > 0 OR asistencias > 0
+        ORDER BY pts DESC, (reb_of + reb_def) DESC
+    """
+    
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 # --- PUNTAJE POR CUARTOS ---

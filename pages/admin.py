@@ -15,7 +15,7 @@ from fpdf import FPDF
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from db import (
     init_db, agregar_equipo, listar_equipos, obtener_equipo, eliminar_equipo,
-    agregar_jugador, listar_jugadores, eliminar_jugador,
+    agregar_jugador, listar_jugadores, eliminar_jugador, verificar_dni_existente,
     crear_partido, listar_partidos, obtener_partido, actualizar_estado_partido,
     registrar_evento, obtener_ultimos_eventos, borrar_ultimo_evento,
     obtener_stats_partido, obtener_puntos_equipo,
@@ -816,37 +816,87 @@ elif pagina == "📋 Inscripción":
             with st.form("form_jugador", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
-                    jug_nombre = st.text_input("Nombre del jugador")
+                    jug_apellido = st.text_input("Apellido")
+                    jug_dni = st.text_input("DNI")
                 with col2:
-                    dorsal = st.number_input("Dorsal", min_value=0, max_value=99, step=1)
+                    jug_nombre = st.text_input("Nombre")
+                    jug_fecha_nac = st.date_input("Fecha de nacimiento", value=None)
+                dorsal = st.number_input("Dorsal", min_value=0, max_value=99, step=1)
+                
                 if st.form_submit_button("Agregar Jugador", type="primary"):
-                    if jug_nombre.strip():
-                        agregar_jugador(jug_nombre.strip(), int(dorsal), equipo_id)
-                        st.success(f"✅ {jug_nombre} (#{dorsal}) agregado")
+                    if jug_apellido.strip() and jug_nombre.strip():
+                        # Validar DNI único por equipo
+                        if jug_dni.strip() and verificar_dni_existente(jug_dni.strip(), equipo_id):
+                            st.error(f"❌ El DNI {jug_dni} ya existe en este equipo")
+                        else:
+                            fecha_str = jug_fecha_nac.strftime("%Y-%m-%d") if jug_fecha_nac else None
+                            agregar_jugador(
+                                jug_apellido.strip(), 
+                                jug_nombre.strip(), 
+                                jug_dni.strip() if jug_dni.strip() else None,
+                                fecha_str,
+                                int(dorsal), 
+                                equipo_id
+                            )
+                            st.success(f"✅ {jug_apellido}, {jug_nombre} (#{dorsal}) agregado")
                     else:
-                        st.error("El nombre es obligatorio.")
+                        st.error("Apellido y nombre son obligatorios.")
 
             # --- Carga masiva por Excel ---
             st.markdown("---")
             st.markdown("**📥 Carga masiva desde Excel**")
-            st.caption("El archivo debe tener columnas: `nombre` y `dorsal`")
+            st.caption("Columnas requeridas: `apellido`, `nombre`, `dorsal`. Opcionales: `dni`, `fecha_nacimiento` (YYYY-MM-DD)")
             excel_file = st.file_uploader("Subir Excel (.xlsx)", type=["xlsx"], key=f"excel_{equipo_id}")
             if excel_file:
                 try:
                     df_excel = pd.read_excel(excel_file, engine="openpyxl")
                     df_excel.columns = [c.strip().lower() for c in df_excel.columns]
-                    if 'nombre' not in df_excel.columns or 'dorsal' not in df_excel.columns:
-                        st.error("El Excel debe tener columnas 'nombre' y 'dorsal'.")
+                    required_cols = ['apellido', 'nombre', 'dorsal']
+                    if not all(col in df_excel.columns for col in required_cols):
+                        st.error(f"El Excel debe tener columnas: {', '.join(required_cols)}")
                     else:
-                        df_excel = df_excel.dropna(subset=['nombre', 'dorsal'])
-                        st.dataframe(df_excel[['nombre', 'dorsal']], hide_index=True)
+                        df_excel = df_excel.dropna(subset=['apellido', 'nombre', 'dorsal'])
+                        display_cols = ['apellido', 'nombre', 'dorsal']
+                        if 'dni' in df_excel.columns:
+                            display_cols.append('dni')
+                        if 'fecha_nacimiento' in df_excel.columns:
+                            display_cols.append('fecha_nacimiento')
+                        st.dataframe(df_excel[display_cols], hide_index=True)
+                        
                         if st.button("✅ Importar jugadores", key=f"import_{equipo_id}"):
                             count = 0
-                            for _, row in df_excel.iterrows():
-                                agregar_jugador(str(row['nombre']).strip(), int(row['dorsal']), equipo_id)
+                            errors = []
+                            for idx, row in df_excel.iterrows():
+                                dni = str(row.get('dni', '')).strip() if pd.notna(row.get('dni')) else None
+                                # Validar DNI
+                                if dni and verificar_dni_existente(dni, equipo_id):
+                                    errors.append(f"Fila {idx+2}: DNI {dni} ya existe")
+                                    continue
+                                
+                                fecha_nac = None
+                                if 'fecha_nacimiento' in row and pd.notna(row['fecha_nacimiento']):
+                                    if isinstance(row['fecha_nacimiento'], pd.Timestamp):
+                                        fecha_nac = row['fecha_nacimiento'].strftime("%Y-%m-%d")
+                                    else:
+                                        fecha_nac = str(row['fecha_nacimiento'])
+                                
+                                agregar_jugador(
+                                    str(row['apellido']).strip(),
+                                    str(row['nombre']).strip(),
+                                    dni,
+                                    fecha_nac,
+                                    int(row['dorsal']),
+                                    equipo_id
+                                )
                                 count += 1
-                            st.success(f"✅ {count} jugadores importados correctamente")
-                            st.rerun()
+                            
+                            if errors:
+                                st.warning(f"⚠️ {len(errors)} errores de duplicados:")
+                                for err in errors[:5]:
+                                    st.write(f"  - {err}")
+                            if count > 0:
+                                st.success(f"✅ {count} jugadores importados correctamente")
+                                st.rerun()
                 except Exception as e:
                     st.error(f"Error al leer el Excel: {e}")
 
@@ -856,7 +906,8 @@ elif pagina == "📋 Inscripción":
             if jugadores:
                 for j in jugadores:
                     col1, col2 = st.columns([4, 1])
-                    col1.write(f"#{j['dorsal']} - {j['nombre']}")
+                    info_extra = f" | DNI: {j.get('dni', 'N/A')}" if j.get('dni') else ""
+                    col1.write(f"#{j['dorsal']} - {j.get('apellido', '')}, {j.get('nombre', '')}{info_extra}")
                     if col2.button("❌", key=f"del_jug_{j['id']}"):
                         eliminar_jugador(j['id'])
                         st.rerun()
