@@ -27,13 +27,26 @@ if "planilla_access" not in st.session_state:
 
 if not st.session_state.planilla_access:
     st.warning("🔒 Ingresá la contraseña de mesa de control")
+    
+    # Verificar si existe usuario mesero, si no, crear uno por defecto
+    from db import get_connection, crear_usuario
+    import hashlib
+    
+    conn = get_connection()
+    row = conn.execute("SELECT username FROM usuarios WHERE username='mesero'").fetchone()
+    conn.close()
+    
+    if not row:
+        # Crear usuario mesero con contraseña "mesero123"
+        try:
+            crear_usuario("mesero", "mesero123", "Mesa de Control", "mesero")
+            st.info("✅ Usuario 'mesero' creado con contraseña: mesero123")
+        except Exception as e:
+            st.error(f"Error creando usuario: {e}")
+    
     pwd = st.text_input("Contraseña", type="password")
     
-    # Obtener contraseña hasheada de la BD para comparar
     if st.button("Ingresar"):
-        import hashlib
-        from db import get_connection
-        
         conn = get_connection()
         row = conn.execute("SELECT password FROM usuarios WHERE username='mesero'").fetchone()
         conn.close()
@@ -46,7 +59,7 @@ if not st.session_state.planilla_access:
             else:
                 st.error("Contraseña incorrecta")
         else:
-            st.error("Usuario mesero no encontrado. Creá uno en Admin.")
+            st.error("Error: No se pudo crear el usuario mesero")
     st.stop()
 
 # CSS para estilo planilla
