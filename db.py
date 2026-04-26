@@ -586,12 +586,14 @@ def obtener_estadisticas_torneo(torneo_id, categoria_nombre=None):
     
     if categoria_nombre:
         # Ejecutar con filtro de categoría (por nombre, no por ID)
-        rows = conn.execute(base_query + " AND eq.categoria = ? GROUP BY j.id, j.apellido, j.nombre, j.dorsal, eq.nombre, eq.categoria", 
-                          (torneo_id, categoria_nombre)).fetchall()
+        query_completa = base_query + " AND eq.categoria = ? GROUP BY j.id, j.apellido, j.nombre, j.dorsal, eq.nombre, eq.categoria"
+        params = (torneo_id, categoria_nombre)
+        rows = conn.execute(query_completa, params).fetchall()
     else:
         # Ejecutar sin filtro de categoría
-        rows = conn.execute(base_query + " GROUP BY j.id, j.apellido, j.nombre, j.dorsal, eq.nombre, eq.categoria", 
-                          (torneo_id,)).fetchall()
+        query_completa = base_query + " GROUP BY j.id, j.apellido, j.nombre, j.dorsal, eq.nombre, eq.categoria"
+        params = (torneo_id,)
+        rows = conn.execute(query_completa, params).fetchall()
     
     # Filtrar resultados con estadísticas en Python
     result = []
