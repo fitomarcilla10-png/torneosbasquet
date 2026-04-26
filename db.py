@@ -589,7 +589,10 @@ def obtener_estadisticas_torneo(torneo_id, categoria_id=None):
     
     query += """
         GROUP BY j.id, j.apellido, j.nombre, j.dorsal, eq.nombre, eq.categoria_id
-        HAVING pts > 0 OR reb_of > 0 OR reb_def > 0 OR asistencias > 0
+        HAVING COALESCE(SUM(CASE WHEN ev.tipo IN ('+1','+2','+3') THEN ev.valor ELSE 0 END), 0) > 0 
+            OR COALESCE(SUM(CASE WHEN ev.tipo = 'Rebote Ofensivo' THEN 1 ELSE 0 END), 0) > 0 
+            OR COALESCE(SUM(CASE WHEN ev.tipo = 'Rebote Defensivo' THEN 1 ELSE 0 END), 0) > 0 
+            OR COALESCE(SUM(CASE WHEN ev.tipo = 'Asistencia' THEN 1 ELSE 0 END), 0) > 0
         ORDER BY pts DESC, (reb_of + reb_def) DESC
     """
     
