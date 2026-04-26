@@ -263,6 +263,13 @@ if pagina == "🎮 Mesa de Control":
         # ═══ PANEL ÚNICO COMPACTO: Cronómetro + Marcador + Estadísticas ═══
         st.markdown("---")
         
+        # Inicializar cronómetro si no existe
+        TIEMPO_CUARTO = 600  # 10 minutos en segundos
+        if "crono_start" not in st.session_state:
+            st.session_state.crono_start = None
+            st.session_state.crono_elapsed = 0
+            st.session_state.crono_running = False
+        
         pts_local = obtener_puntos_equipo(partido_id, partido['equipo_local_id'])
         pts_visit = obtener_puntos_equipo(partido_id, partido['equipo_visitante_id'])
         stats_temp = obtener_stats_partido(partido_id)
