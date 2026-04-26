@@ -188,7 +188,7 @@ with tab_estadisticas:
         df_goleadores = pd.DataFrame(stats_torneo[:10])
         df_goleadores['Jugador'] = df_goleadores['apellido'] + ', ' + df_goleadores['nombre']
         df_goleadores['Equipo'] = df_goleadores['equipo_nombre']
-        df_goleadores = df_goleadores[['#', 'Jugador', 'Equipo', 'pts', 'partidos_jugados']]
+        df_goleadores = df_goleadores[['dorsal', 'Jugador', 'Equipo', 'pts', 'partidos_jugados']]
         df_goleadores.columns = ['#', 'Jugador', 'Equipo', 'PTS', 'PJ']
         df_goleadores.index = range(1, len(df_goleadores) + 1)
         df_goleadores.index.name = "Pos"
